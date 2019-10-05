@@ -145,10 +145,15 @@ class QFunctional(torch.nn.Module):
         return ops.quantized.mul(x, y, scale=self.scale,
                                  zero_point=self.zero_point)
 
+    r"""Tensor-scalar multiplication followed by ReLU"""
+    def mul_relu(self, x, y):
+        # type: (Tensor, Tensor) -> Tensor
+        return torch._C._nn.mul_relu(x, y)
+
     r"""Operation equivalent to ``torch.ops.quantized.mul(Tensor, float)``"""
     def mul_scalar(self, x, y):
         # type: (Tensor, float) -> Tensor
-        return ops.quantized.mul_scalar(x, y)
+        return x * y
 
     r"""Operation equivalent to ``torch.ops.quantized.cat``"""
     def cat(self, x, dim=0):
