@@ -19,77 +19,75 @@ int main() {
   const auto size = ::rand(max_value);
   float* a = (float*)std::malloc(sizeof(float) * size);
   float* b = (float*)std::malloc(sizeof(float) * size);
+  float* c = (float*)std::malloc(sizeof(float) * size);
   for (auto i = decltype(size){0}; i < size; ++i) {
     a[i] = ::rand(max_value);
     b[i] = ::rand(max_value);
+    c[i] = ::rand(max_value);
   }
 
   for (auto i = decltype(warmup_iters){0}; i < warmup_iters; ++i) {
-    float* c = (float*)std::malloc(sizeof(float) * size);
     for (auto i = decltype(size){0}; i < size; ++i) {
-      c[i] = a[i] + b[i];
+      c[i] += a[i] + b[i];
     }
-    std::free(c);
   }
 
   const auto start = std::chrono::high_resolution_clock::now();
 
   for (auto i = decltype(iters){0}; i < iters; ++i) {
-    float* c = (float*)std::malloc(sizeof(float) * size);
     for (auto i = decltype(size){0}; i < size; ++i) {
-      c[i] = a[i] + b[i];
+      c[i] += a[i] + b[i];
     }
-    std::free(c);
   }
 
 /* Loop assembly (from Godbolt)
-.L13:
-        mov     rdi, QWORD PTR [rsp]
-        call    malloc
-        cmp     DWORD PTR [rsp+8], 2147483643
-        ja      .L15
-        xor     edx, edx
 .L11:
-        movups  xmm0, XMMWORD PTR [r14+rdx]
-        movups  xmm3, XMMWORD PTR [r15+rdx]
-        addps   xmm0, xmm3
-        movups  XMMWORD PTR [rax+rdx], xmm0
-        add     rdx, 16
-        cmp     rdx, r13
+        movups  xmm0, XMMWORD PTR [rbp+0+rax]
+        movups  xmm4, XMMWORD PTR [r12+rax]
+        movups  xmm5, XMMWORD PTR [rbx+rax]
+        addps   xmm0, xmm4
+        addps   xmm0, xmm5
+        movups  XMMWORD PTR [rbx+rax], xmm0
+        add     rax, 16
+        cmp     rax, r15
         jne     .L11
-        mov     edx, ebx
-        cmp     DWORD PTR [rsp+12], ebx
+        mov     eax, edx
+        cmp     esi, edx
         je      .L12
 .L10:
-        movsx   rdi, edx
-        movss   xmm0, DWORD PTR [r15+rdi*4]
-        addss   xmm0, DWORD PTR [r14+rdi*4]
-        movss   DWORD PTR [rax+rdi*4], xmm0
-        lea     edi, [rdx+1]
-        cmp     edi, r12d
+        movsx   r9, eax
+        lea     r10, [rbx+r9*4]
+        movss   xmm0, DWORD PTR [r12+r9*4]
+        addss   xmm0, DWORD PTR [rbp+0+r9*4]
+        addss   xmm0, DWORD PTR [r10]
+        lea     r9d, [rax+1]
+        movss   DWORD PTR [r10], xmm0
+        cmp     r9d, r13d
         jge     .L12
-        movsx   rdi, edi
-        add     edx, 2
-        movss   xmm0, DWORD PTR [r14+rdi*4]
-        addss   xmm0, DWORD PTR [r15+rdi*4]
-        movss   DWORD PTR [rax+rdi*4], xmm0
-        cmp     edx, r12d
+        movsx   r9, r9d
+        add     eax, 2
+        lea     r10, [rbx+r9*4]
+        movss   xmm0, DWORD PTR [r12+r9*4]
+        addss   xmm0, DWORD PTR [rbp+0+r9*4]
+        addss   xmm0, DWORD PTR [r10]
+        movss   DWORD PTR [r10], xmm0
+        cmp     eax, r13d
         jge     .L12
-        movsx   rdx, edx
-        movss   xmm0, DWORD PTR [r15+rdx*4]
-        addss   xmm0, DWORD PTR [r14+rdx*4]
-        movss   DWORD PTR [rax+rdx*4], xmm0
+        cdqe
+        lea     r9, [rbx+rax*4]
+        movss   xmm0, DWORD PTR [rbp+0+rax*4]
+        addss   xmm0, DWORD PTR [r12+rax*4]
+        addss   xmm0, DWORD PTR [r9]
+        movss   DWORD PTR [r9], xmm0
 .L12:
-        mov     rdi, rax
-        call    free
-        sub     rbp, 1
+        sub     r8, 1
         jne     .L13
 */
 
   const auto end = std::chrono::high_resolution_clock::now();
   const auto elapsed = end - start;
   const auto elapsed_ns = std::chrono::duration_cast<ns>(elapsed);
-  const std::size_t flops = size * iters;
+  const std::size_t flops = 2 * size * iters;
   const std::size_t bytes = sizeof(float) * 3 * size * iters;
 
   std::cout << "Ran in " << elapsed_ns.count() << "ns\n" << std::endl;
@@ -100,5 +98,6 @@ int main() {
 
   std::free(a);
   std::free(b);
+  std::free(c);
   return 0;
 }

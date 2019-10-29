@@ -18,12 +18,12 @@ int main() {
   auto a = torch::ones({2, 3, 4});
   auto b = torch::ones({3, 4});
   std::vector<torch::Tensor> inputs{a, b};
-  std::vector<TensorDesc> descs = c10::fmap<TensorDesc>(inputs);
 
   const auto start = std::chrono::high_resolution_clock::now();
 
   for (auto i = decltype(iters){0}; i < iters; ++i) {
-    // const size_t hash_code = torch::get_hash(0, inputs.size(), inputs);
+    auto descs = c10::fmap<TensorDesc>(inputs);
+    const size_t hash_code = torch::get_hash(0, inputs.size(), descs);
   }
 
   const auto end = std::chrono::high_resolution_clock::now();
