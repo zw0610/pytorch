@@ -6,7 +6,7 @@
 
 typedef std::chrono::nanoseconds ns;
 constexpr uint64_t warmup_iters = 500000;
-constexpr uint64_t iters = 5000000;
+constexpr uint64_t iters = 500000;
 constexpr int max_value = 50;
 
 int rand(const int max_value) {
@@ -18,8 +18,14 @@ int main() {
   std::srand(std::time(0));
   const auto size = ::rand(max_value);
 
-  auto a = torch::ones({size});
-  auto b = torch::ones({size});
+  auto options = torch::TensorOptions()
+                  .dtype(torch::kFloat32)
+                  .layout(torch::kStrided)
+                  .device(torch::kCPU)
+                  .requires_grad(false);
+
+  auto a = torch::ones({size}, options);
+  auto b = torch::ones({size}, options);
 
   for (auto i = decltype(warmup_iters){0}; i < warmup_iters; ++i) {
     auto c = a + b;

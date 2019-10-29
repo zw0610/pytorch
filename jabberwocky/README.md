@@ -15,3 +15,18 @@ process.
 
 Relevant Jabberwocky files are in c10/core/jabberwocky, plus the interface
 header (c10/core/Jabberwocky.h).
+
+TODO:
+
+* Plot 1 element -> 50MB tensors and flops
+* Merge tensor + storage (views vs tensors)
+* Improve allocation perf
+* Improve view/stride perf
+* Improve refcounting perf
+
+Ideas:
+* Copy-on-write tensors
+
+Non-foci:
+* Interning views
+
