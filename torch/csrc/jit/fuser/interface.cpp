@@ -17,6 +17,40 @@ bool cpu_fuser_enabled = false;
 
 } // namespace detail
 
+bool addNode(const Node* const node, Node* fusion_group) {
+  std::cout << "interface.cpp: addNode()" << std::endl;
+  auto inputs = node->inputs();
+  std::cout << "nInputs: " << inputs.size() << std::endl;
+
+  for (auto i = decltype(inputs.size()){0}; i < inputs.size(); ++i) {
+    auto* in = inputs[i];
+    if (in->isCompleteTensor()) {
+      std::cout << "Input " << i << " is complete tensor" << std::endl;
+    } else if (in->type()->isSubtypeOf(NumberType::get())) {
+
+      if (in->node()->kind() == prim::Constant) {
+        std::cout << "Input " << i << " is a constant" << std::endl;
+      }
+
+      std::cout << "Input " << i << " is a NumberType" << std::endl;
+      if (in->type() == FloatType::get()) {
+        std::cout << "Input " << i << " is a Float" << std::endl;
+      } else if (in->type() == IntType::get()) {
+        std::cout << "Input " << i << " is an Int" << std::endl;
+
+      } else {
+        std::cout << "Input " << i << " is an unknown NumberType" << std::endl;
+      }
+    } else {
+      std::cout << "Input " << i << " is an unknown type" << std::endl;
+    }
+  }
+
+  auto outputs = node->outputs();
+  std::cout << "nOutputs: " << outputs.size() << std::endl;
+  return false;
+}
+
 int64_t registerFusion(const Node* fusion_group) {
   return fuser::registerFusion(fusion_group);
 }
