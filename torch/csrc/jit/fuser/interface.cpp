@@ -1,3 +1,5 @@
+#include <aten/src/ATen/core/jit_type.h>
+
 #include <torch/csrc/jit/fuser/interface.h>
 
 #include <torch/csrc/jit/fuser/compiler.h>
@@ -6,6 +8,8 @@
 #include <torch/csrc/jit/fuser/kernel_cache.h>
 
 #include <stdexcept>
+
+#define FUSER_DEBUG 1
 
 namespace torch {
 namespace jit {
@@ -17,39 +21,132 @@ bool cpu_fuser_enabled = false;
 
 } // namespace detail
 
-bool addNode(const Node* const node, Node* fusion_group) {
-  std::cout << "interface.cpp: addNode()" << std::endl;
+// TODO: make dbgs take stream to print on
+namespace {
+
+void printScalar(const Value* const value) {
+  if (value->node()->kind() == prim::Constant) {
+    std::cout << "Const Scalar: ";
+  } else {
+    std::cout << "Scalar: ";
+  }
+
+  if (value->type() == FloatType::get()) {
+    std::cout << "float ";
+    const float val = value->node()->f(attr::value);
+    std::cout << val;
+  } else if (value->type() == IntType::get()) {
+    std::cout << "int ";
+    const int val = value->node()->i(attr::value);
+    std::cout << val;
+  } else {
+    std::cout << "unknown";
+  }
+
+  std::cout << std::endl;
+}
+
+void printStrides(const c10::VaryingStrides& strides) {
+  std::cout << "Strides: ";
+  for (size_t i = 0; i < *(strides.size()); ++i) {
+    std::cout << *(strides[i]) << " ";
+  }
+
+  std::cout << std::endl;
+}
+
+void printSizes(const c10::VaryingShape& sizes) {
+  std::cout << "Sizes: ";
+  for (size_t i = 0; i < *(sizes.size()); ++i) {
+    std::cout << *(sizes[i]) << " ";
+  }
+
+  std::cout << std::endl;
+}
+
+void printCompleteTensor(const std::shared_ptr<c10::TensorType> tensor) {
+  std::cout << "Complete Tensor: ";
+  std::cout << *(tensor->device()) << " ";
+  std::cout << "nDims: " << *(tensor->dim()) << " ";
+  std::cout << std::endl;
+  printSizes(tensor->sizes());
+  printStrides(tensor->strides());
+}
+
+void printValue(const Value* const value) {
+  if (value->isCompleteTensor()) {
+    printCompleteTensor(value->type()->expect<TensorType>());
+  } else if (value->type()->isSubtypeOf(NumberType::get())) {
+    printScalar(value);
+  } else {
+    std::cout << "Request to print unknown value" << std::endl;
+  }
+}
+
+// Returns true if and only if value is a scalar or a complete tensor type
+bool validateValue(const Value* const value, const bool dbg = false) {
+  if (dbg) {
+    printValue(value);
+  }
+
+  if (value->isCompleteTensor() || value->type()->isSubtypeOf(NumberType::get())) {
+    return true;
+  }
+
+  return false;
+}
+
+// Returns true if all inputs and outputs are complete tensors or scalars
+// Note: complete tensor means device, nDims, sizes, and strides are known
+// In particular, all optional values of sizes and strides have values
+bool validateNode(const Node* const node, const bool dbg = false) {
   auto inputs = node->inputs();
-  std::cout << "nInputs: " << inputs.size() << std::endl;
+  auto outputs = node->outputs();
+
+  if (dbg) {
+    std::cout << "nInputs: " << inputs.size() << std::endl;
+    std::cout << "nOutputs: " << outputs.size() << std::endl;
+  }
+
+  if (dbg) {
+    std::cout << "Inputs: " << std::endl;
+  }
 
   for (auto i = decltype(inputs.size()){0}; i < inputs.size(); ++i) {
-    auto* in = inputs[i];
-    if (in->isCompleteTensor()) {
-      std::cout << "Input " << i << " is complete tensor" << std::endl;
-    } else if (in->type()->isSubtypeOf(NumberType::get())) {
-
-      if (in->node()->kind() == prim::Constant) {
-        std::cout << "Input " << i << " is a constant" << std::endl;
-      }
-
-      std::cout << "Input " << i << " is a NumberType" << std::endl;
-      if (in->type() == FloatType::get()) {
-        std::cout << "Input " << i << " is a Float" << std::endl;
-      } else if (in->type() == IntType::get()) {
-        std::cout << "Input " << i << " is an Int" << std::endl;
-
-      } else {
-        std::cout << "Input " << i << " is an unknown NumberType" << std::endl;
-      }
-    } else {
-      std::cout << "Input " << i << " is an unknown type" << std::endl;
+    if (!validateValue(inputs[i], dbg)) {
+      return false;
     }
   }
 
-  auto outputs = node->outputs();
-  std::cout << "nOutputs: " << outputs.size() << std::endl;
+  if (dbg) {
+    std::cout << "Outputs: " << std::endl;
+  }
+
+  for (auto i = decltype(outputs.size()){0}; i < outputs.size(); ++i) {
+    if (!validateValue(outputs[i], dbg)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+} // namespace
+
+bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
+  #if FUSER_DEBUG
+    std::cout << "interface.cpp: addNode()" << std::endl;
+    const auto is_valid = validateNode(node, true);
+    std::cout << "is_valid: " << is_valid << std::endl;
+  #else
+    const auto is_valid = validateNode(node, false);
+  #endif // FUSER_DEBUG
+
   return false;
 }
+
+
+// OLD STUFF BELOW HERE
 
 int64_t registerFusion(const Node* fusion_group) {
   return fuser::registerFusion(fusion_group);

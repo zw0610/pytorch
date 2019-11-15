@@ -1215,7 +1215,7 @@ void FuseGraph(std::shared_ptr<Graph>& graph) {
     std::cout << "kind: " << node->kind().toQualString() << std::endl;
     if (node->kind() == aten::add) {
       std::cout << "Sending add node to fuser" << std::endl;
-      addNode(node, nullptr);
+      mergeNodeWithFusionGroup(node, nullptr);
     }
   }
 
