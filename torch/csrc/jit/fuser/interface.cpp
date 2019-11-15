@@ -1,4 +1,5 @@
 #include <aten/src/ATen/core/jit_type.h>
+#include <c10/core/DeviceType.h>
 
 #include <torch/csrc/jit/fuser/interface.h>
 
@@ -6,6 +7,8 @@
 #include <torch/csrc/jit/fuser/executor.h>
 #include <torch/csrc/jit/fuser/fallback.h>
 #include <torch/csrc/jit/fuser/kernel_cache.h>
+
+#include <asmjit/asmjit.h>
 
 #include <stdexcept>
 
@@ -67,6 +70,7 @@ void printSizes(const c10::VaryingShape& sizes) {
 void printCompleteTensor(const std::shared_ptr<c10::TensorType> tensor) {
   std::cout << "Complete Tensor: ";
   std::cout << *(tensor->device()) << " ";
+  std::cout << *(tensor->scalarType()) << " ";
   std::cout << "nDims: " << *(tensor->dim()) << " ";
   std::cout << std::endl;
   printSizes(tensor->sizes());
@@ -133,6 +137,29 @@ bool validateNode(const Node* const node, const bool dbg = false) {
 
 } // namespace
 
+
+bool cpuMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
+  #if FUSER_DEBUG
+    std::cout << "cpuMergeNodeWithFusionGroup" << std::endl;
+  #endif // FUSER_DEBUG
+
+  return false;
+}
+
+bool cudaMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
+  #if FUSER_DEBUG
+    std::cout << "cudaMergeNodeWithFusionGroup" << std::endl;
+  #endif // FUSER_DEBUG
+
+  return false;
+}
+
+// Given a node and a fusion group, returns true if the node can be
+// merged into the fusion group and false if it cannot.
+// The fusion_group may be empty, specified by a nullptr.
+// TODO: make this actually work (currently always returns false)
+// TODO: validate that all inputs and outputs are on the same device (no multi-device fusion)
+
 bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   #if FUSER_DEBUG
     std::cout << "interface.cpp: addNode()" << std::endl;
@@ -142,11 +169,73 @@ bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
     const auto is_valid = validateNode(node, false);
   #endif // FUSER_DEBUG
 
+  if (!is_valid) {
+    return false;
+  }
+
+  const auto& outputs = node->outputs();
+
+  // Only single-output fusions (for now)
+  if (outputs.size() != 1) {
+    return false;
+  }
+
+  const auto& output = node->output();
+
+  // Only tensor output fusions (for now)
+  if (!(output->isCompleteTensor())) {
+    return false;
+  }
+
+  const std::shared_ptr<c10::TensorType> out_tensor = output->type()->expect<TensorType>();
+  const auto& fusion_device = *(out_tensor->device());
+
+  #if FUSER_DEBUG
+    std::cout << "fusion device " << fusion_device << std::endl;
+  #endif // FUSER_DEBUG
+
+  if (fusion_device.type() == c10::kCPU) {
+    #if FUSER_DEBUG
+      std::cout << "fusing on CPU" << std::endl;
+    #endif // FUSER_DEBUG
+    return cpuMergeNodeWithFusionGroup(node, fusion_group);
+  } else if (fusion_device.type() == c10::kCUDA) {
+    #if FUSER_DEBUG
+      std::cout << "fusing on CUDA" << std::endl;
+    #endif // FUSER_DEBUG
+    return cudaMergeNodeWithFusionGroup(node, fusion_group);
+  } else {
+    std::cout << "unknown fusion device: " << fusion_device << std::endl;
+    return false;
+  }
+
   return false;
 }
 
 
 // OLD STUFF BELOW HERE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 int64_t registerFusion(const Node* fusion_group) {
   return fuser::registerFusion(fusion_group);
