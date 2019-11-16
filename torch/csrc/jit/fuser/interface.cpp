@@ -273,17 +273,17 @@ bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   const auto fusion_device = *(out_tensor->device());
 
   #if FUSER_DEBUG
-    std::cout << "fusion device " << fusion_device << std::endl;
+  std::cout << "Fusion Device: " << fusion_device<<std::endl;
   #endif // FUSER_DEBUG
 
   if (fusion_device.type() == c10::kCPU) {
     #if FUSER_DEBUG
-      std::cout << "fusing on CPU" << std::endl;
+      std::cout << "Fusing on CPU" << std::endl;
     #endif // FUSER_DEBUG
     return cpuMergeNodeWithFusionGroup(node, fusion_group);
   } else if (fusion_device.type() == c10::kCUDA) {
     #if FUSER_DEBUG
-      std::cout << "fusing on CUDA" << std::endl;
+      std::cout << "Fusing on CUDA" << std::endl;
     #endif // FUSER_DEBUG
     return cudaMergeNodeWithFusionGroup(node, fusion_group);
   } else {
