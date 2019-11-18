@@ -189,10 +189,10 @@ bool cpuMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
 
   // Loop body
   a.bind(LoopBody);
-  a.vmovss(xmm0, dword_ptr(rdx, rax, 2)); // loads lhs[offset]
-  a.vaddss(xmm0, xmm0, dword_ptr(rcx, rax, 2)); // lhs[offset] + rhs[offset]
+  a.vmovss(xmm0, dword_ptr(rdx, rax, 2)); // xmm0 = lhs[offset]
+  a.vaddss(xmm0, xmm0, dword_ptr(rcx, rax, 2)); // xmm0 = xmm0 + rhs[offset]
   a.lea(rdi, dword_ptr(rax, 1)); // size = offset + 1
-  a.vmovss(dword_ptr(rsi, rax, 2), xmm0); // out[offset] = sum
+  a.vmovss(dword_ptr(rsi, rax, 2), xmm0); // out[offset] = xmm0
 
   // Checks if loop is finished
   a.cmp(rax, r8); // if offset == size - 1, terminate
