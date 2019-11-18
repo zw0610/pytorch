@@ -487,6 +487,7 @@ if (NOT INTERN_BUILD_MOBILE OR NOT BUILD_CAFFE2_MOBILE)
       ${TORCH_SRC_DIR}/csrc/jit/import_legacy.cpp
       ${TORCH_SRC_DIR}/csrc/jit/netdef_converter.cpp
       ${TORCH_SRC_DIR}/csrc/jit/fuser/cpu/fused_kernel.cpp
+      ${TORCH_SRC_DIR}/csrc/jit/fuser/cpu/interface.cpp
       ${TORCH_SRC_DIR}/csrc/utils/byte_order.cpp
     )
     if (USE_DISTRIBUTED)
