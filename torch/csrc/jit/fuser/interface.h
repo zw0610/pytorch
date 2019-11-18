@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+#define FUSER_DEBUG 1
+
 namespace torch {
 namespace jit {
 
