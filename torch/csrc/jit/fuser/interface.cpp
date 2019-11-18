@@ -45,26 +45,30 @@ void printScalar(const Value* const value) {
   } else {
     std::cout << "unknown";
   }
-
   std::cout << std::endl;
 }
 
 void printStrides(const c10::VaryingStrides& strides) {
-  std::cout << "Strides: ";
+  std::cout << "Strides=";
   for (size_t i = 0; i < *(strides.size()); ++i) {
-    std::cout << *(strides[i]) << " ";
+    std::cout << *(strides[i]);
+    if(i != *(strides.size())-1)
+      std::cout << ", ";
+    else
+      std::cout << ")";
   }
 
-  std::cout << std::endl;
 }
 
 void printSizes(const c10::VaryingShape& sizes) {
-  std::cout << "Sizes: ";
+  std::cout << "Sizes=( ";
   for (size_t i = 0; i < *(sizes.size()); ++i) {
-    std::cout << *(sizes[i]) << " ";
+    std::cout << *(sizes[i]);
+    if(i != *(sizes.size())-1)
+      std::cout << ", ";
+    else
+      std::cout << ")";
   }
-
-  std::cout << std::endl;
 }
 
 void printCompleteTensor(const std::shared_ptr<c10::TensorType> tensor) {
@@ -228,10 +232,91 @@ bool cpuMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   return false;
 }
 
+std::vector<bool> canCollapseDimsDown(const std::shared_ptr<c10::TensorType> tensor){
+  int64_t ndims = *(tensor->dim());
+
+  //Flags to see if the current dim can be fused with the one after
+  //Goes left to right, furthest right doesn't need a flag
+  std::vector<bool> canCollapseDown(ndims, true);
+
+  for (int64_t d = 0; d < ndims - 1; d++) {
+    int64_t stride = *(tensor->strides()[d]);
+    int64_t stride_p_1 = *(tensor->strides()[d+1]);
+    int64_t size_p_1 = *(tensor->sizes()[d+1]);
+
+    if( (stride_p_1 * size_p_1 != stride)
+	&& !(stride_p_1 == 0 && stride == 0) )
+      canCollapseDown[d] = false;
+
+  }
+
+  canCollapseDown[ndims-1] = true;
+
+  return canCollapseDown;
+}
+
 bool cudaMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   #if FUSER_DEBUG
     std::cout << "cudaMergeNodeWithFusionGroup" << std::endl;
   #endif // FUSER_DEBUG
+
+  bool dbg = FUSER_DEBUG;
+
+  int64_t ndims = *(node->inputs()[0]->type()->expect<TensorType>()->dim());
+  std::vector< std::vector<bool> > collapse_vecs;
+
+
+  //Check how we could dimensionally reduce each input
+  for(const auto& value : node->inputs())
+    if(value->isCompleteTensor()){
+      assert(*(value->type()->expect<TensorType>()->dim()) == ndims);
+      collapse_vecs.push_back(canCollapseDimsDown(value->type()->expect<TensorType>()));
+    }
+
+  //Check how we could dimennsionally reduce each output
+  for(const auto& value : node->outputs())
+    if(value->isCompleteTensor()){
+      assert(*(value->type()->expect<TensorType>()->dim()) == ndims);
+      collapse_vecs.push_back(canCollapseDimsDown(value->type()->expect<TensorType>()));
+    }
+
+  std::vector<bool> dim_collapse = collapse_vecs[0];
+
+  for(auto it = collapse_vecs.begin() + 1; it!=collapse_vecs.end(); ++it){
+    for(int64_t d = 0; d<ndims; d++){
+      dim_collapse[d] = dim_collapse[d] && (*it)[d];
+    }
+  }
+
+  //Contig not the right word here because the tensor:
+  //Size(4, 4, 2) stride(16, 4, 2) will be fully
+  //collapsable but not contiguous
+  bool contig = true;
+  for(const auto iscontig : dim_collapse)
+    contig = contig && iscontig;
+
+  if(contig)
+    std::cout<<"All tensors are contiguous"<<std::endl;
+
+  bool first = true;
+  for (auto i = decltype(dim_collapse.size()){0}; i < dim_collapse.size() - 1 ; ++i) {
+    if(dim_collapse[i]){
+      if(first){
+	std::cout<<"Tensors could be collapsed on Dims = ("<<i;
+	first = false;
+      }else{
+	std::cout<<", "<<i;
+      }
+    }
+  }
+  if(!first) std::cout<<")"<<std::endl;
+
+
+  if(node->kind() ==  aten::add){
+    std::cout<<"Can fuse node!"<<std::endl;
+    return true;
+  }
+
 
   return false;
 }
@@ -244,7 +329,7 @@ bool cudaMergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
 
 bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   #if FUSER_DEBUG
-    std::cout << "interface.cpp: addNode()" << std::endl;
+    std::cout << "interface.cpp: mergeNodeWithFusionGroup()" << std::endl;
     const auto is_valid = validateNode(node, true);
     std::cout << "is_valid: " << is_valid << std::endl;
   #else
@@ -273,17 +358,17 @@ bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   const auto fusion_device = *(out_tensor->device());
 
   #if FUSER_DEBUG
-    std::cout << "fusion device " << fusion_device << std::endl;
+  std::cout << "Fusion Device: " << fusion_device<<std::endl;
   #endif // FUSER_DEBUG
 
   if (fusion_device.type() == c10::kCPU) {
     #if FUSER_DEBUG
-      std::cout << "fusing on CPU" << std::endl;
+      std::cout << "Fusing on CPU" << std::endl;
     #endif // FUSER_DEBUG
     return cpuMergeNodeWithFusionGroup(node, fusion_group);
   } else if (fusion_device.type() == c10::kCUDA) {
     #if FUSER_DEBUG
-      std::cout << "fusing on CUDA" << std::endl;
+      std::cout << "Fusing on CUDA" << std::endl;
     #endif // FUSER_DEBUG
     return cudaMergeNodeWithFusionGroup(node, fusion_group);
   } else {
