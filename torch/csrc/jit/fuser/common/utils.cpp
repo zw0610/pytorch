@@ -7,15 +7,19 @@ namespace torch {
 namespace jit {
 namespace fuser {
 
-size_t getTensorRank(const std::shared_ptr<c10::TensorType>& tensor) {
+size_t getRank(const std::shared_ptr<c10::TensorType>& tensor) {
   return *(tensor->dim());
+}
+
+size_t getNumel(const std::shared_ptr<c10::TensorType>& tensor) {
+  return *(tensor->numel());
 }
 
 size_t getNumNonCollapsibleDims(const std::shared_ptr<c10::TensorType>& tensor) {
   const c10::VaryingShape& sizes = tensor->sizes();
   const c10::VaryingStrides& strides = tensor->strides();
 
-  const auto nDims = getTensorRank(tensor);
+  const auto nDims = getRank(tensor);
 
   if (nDims == 0) {
     return 0;

@@ -114,8 +114,8 @@ bool validateValue(const Value* const value, const bool dbg = false) {
 // Note: complete tensor means device, nDims, sizes, and strides are known
 // In particular, all optional values of sizes and strides have values
 bool hasCompleteInputsAndOutputs(const Node* const node, const bool dbg = false) {
-  auto inputs = node->inputs();
-  auto outputs = node->outputs();
+  const auto inputs = node->inputs();
+  const auto outputs = node->outputs();
 
   if (dbg) {
     std::cout << "nInputs: " << inputs.size() << std::endl;
@@ -190,7 +190,7 @@ bool mergeNodeWithFusionGroup(const Node* const node, Node* fusion_group) {
   #endif // FUSER_DEBUG
 
   // Validate input tensors are all on fusion device
-  auto inputs = node->inputs();
+  const auto inputs = node->inputs();
   for (auto i = decltype(inputs.size()){0}; i < inputs.size(); ++i) {
     const std::shared_ptr<c10::TensorType> in_tensor = output->type()->expect<TensorType>();
     const auto input_device = *(in_tensor->device());

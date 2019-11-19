@@ -9,6 +9,8 @@ namespace fuser {
 
 TORCH_API size_t getRank(const std::shared_ptr<c10::TensorType>& tensor);
 
+TORCH_API size_t getNumel(const std::shared_ptr<c10::TensorType>& tensor);
+
 TORCH_API size_t getNumNonCollapsibleDims(const std::shared_ptr<c10::TensorType>& tensor);
 
 }}} // namespace torch::jit::fuser
