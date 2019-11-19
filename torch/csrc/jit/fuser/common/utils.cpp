@@ -29,7 +29,9 @@ size_t getNumNonCollapsibleDims(const std::shared_ptr<c10::TensorType>& tensor) 
   auto last = nDims - 1;
   for (int i = static_cast<int>(last); i >=0; --i) {
     const auto size = *(sizes[i]);
-    if (size == 0 || size == 1) {
+    if (size == 0) {
+      return 0;
+    } else if (size == 1) {
       continue;
     } else {
       last = i;
@@ -43,8 +45,11 @@ size_t getNumNonCollapsibleDims(const std::shared_ptr<c10::TensorType>& tensor) 
     const auto stride = *(strides[i]);
     const auto size = *(sizes[i]);
 
-    // Sizes of zero or one are always collapsible
-    if (size == 0 || size == 1) {
+    // Tensors with a size of zero are empty
+    // Size 1 dims are always collapsible
+    if (size == 0) {
+      return 0;
+    } else if (size == 1) {
       continue;
     }
 
