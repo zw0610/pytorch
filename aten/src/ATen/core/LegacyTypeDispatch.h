@@ -25,7 +25,7 @@ class CAFFE2_API LegacyTypeDispatch {
     // problem is that you may get a TensorTypeSet with
     // VariableTensorId set; should you initialize the "underlying"
     // type in that case?  Hard to say.
-    auto b = tensorTypeIdToBackend(legacyExtractTypeId(ts));
+    auto b = dispatchKeyToBackend(legacyExtractTypeId(ts));
     auto p = backendToDeviceType(b);
     static std::once_flag cpu_once;
     static std::once_flag cuda_once;
@@ -82,11 +82,11 @@ struct CAFFE2_API AutoNonVariableTypeMode {
   // NB: The enabled parameter must ALWAYS be black, as Henry Ford used to say.
   // TODO: Eliminate this parameter entirely
   AutoNonVariableTypeMode(bool enabled = true) :
-    guard_(TensorTypeId::VariableTensorId) {
+    guard_(DispatchKey::VariableTensorId) {
 
     TORCH_INTERNAL_ASSERT(enabled);
   }
-  c10::impl::ExcludeTensorTypeIdGuard guard_;
+  c10::impl::ExcludeDispatchKeyGuard guard_;
 };
 
 } // namespace at
