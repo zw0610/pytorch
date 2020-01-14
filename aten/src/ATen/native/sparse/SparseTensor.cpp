@@ -80,7 +80,7 @@ SparseTensor new_sparse(const TensorOptions& options) {
     dispatch_key = DispatchKey::SparseCPUTensorId;
   }
   return detail::make_tensor<SparseTensorImpl>(
-      TensorTypeSet(dispatch_key), options.dtype());
+      DispatchKeySet(dispatch_key), options.dtype());
 }
 
 /** Actual dispatched creation methods ***/
