@@ -121,6 +121,16 @@ void warn_kernel(const c10::OperatorHandle& op, Stack* stack) {
   pop(*stack);
 }
 
+void quantize_per_tensor_kernel(const c10::OperatorHandle& op, Stack* stack){
+  auto result_ = at::quantize_per_tensor(
+    (std::move(peek(*stack, 0, 4))).toTensor(),
+    (std::move(peek(*stack, 1, 4))).toDouble(),
+    (std::move(peek(*stack, 2, 4))).toInt(),
+    (std::move(peek(*stack, 3, 4))).toScalarType());
+    drop(*stack, 4);
+    pack(*stack, std::move(result_));
+}
+
 template <typename T>
 void listAppend(const c10::OperatorHandle& op, Stack* stack) {
   T el = pop(*stack).to<T>();
@@ -148,6 +158,12 @@ static auto registry = torch::RegisterOperators().op(
                                            [](at::Tensor a, at::Tensor b, at::Scalar c) -> at::Tensor {
                                              return at::add(a, b, c);
                                            })
+).op(
+  "_aten::sub.Tensor",
+  torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
+  [](at::Tensor a, at::Tensor b, at::Scalar alpha) {
+     return at::sub(a, b, alpha);
+  })
 ).op(
   "_aten::adaptive_avg_pool2d",
   torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
@@ -352,6 +368,33 @@ static auto registry = torch::RegisterOperators().op(
   torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
   [](const Tensor & self) {
      return at::tanh(self);
+  })
+).op(
+  "_aten::hardtanh_(Tensor(a!) self, Scalar min_val=-1, Scalar max_val=1) -> Tensor",
+  torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
+  [](Tensor self, at::Scalar min, at::Scalar max) {
+     return at::hardtanh_(self, min, max);
+  })
+).op(
+  "_aten::softplus(Tensor self, Scalar beta, Scalar threshold) -> Tensor",
+  torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
+  [](const Tensor& self, at::Scalar beta, at::Scalar threshold) {
+     return at::softplus(self, beta, threshold);
+  })
+).op(
+  "_aten::contiguous(Tensor self) -> Tensor",
+  torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
+  [](const Tensor& self) {
+     return at::native::contiguous(self, at::MemoryFormat::Contiguous);
+  })
+).op(
+  "_aten::quantize_per_tensor(Tensor self, double scale, int64_t zero_point, ScalarType dtype) -> Tensor",
+  torch::RegisterOperators::options().kernel<&quantize_per_tensor_kernel>(c10::TensorTypeId::CPUTensorId)
+).op(
+  "_aten::dequantize(Tensor self) -> Tensor",
+  torch::RegisterOperators::options().kernel(c10::TensorTypeId::CPUTensorId,
+  [](const Tensor& self) {
+     return at::dequantize(self);
   })
 ).op(
   "_aten::max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)",
