@@ -71,14 +71,11 @@ TESTS = [
 if PY33:
     TESTS.extend([
         'distributed/rpc/test_rpc_spawn',
-        'distributed/rpc/test_dist_autograd_spawn',
-        'distributed/rpc/test_dist_optimizer_spawn',
     ])
 
 # skip < 3.6 b/c fstrings added in 3.6
 if PY36:
     TESTS.extend([
-        'test_jit_py3',
     ])
 
 WINDOWS_BLACKLIST = [

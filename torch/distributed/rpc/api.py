@@ -238,8 +238,11 @@ def shutdown(graceful=True):
         >>> rpc.shutdown()
     """
     if graceful:
-        _wait_all_workers()
-        _delete_all_user_rrefs()
+        try:
+            _wait_all_workers()
+            _delete_all_user_rrefs()
+        except Exception as e:
+            print("Exception passed to Python world", e)
         _get_current_rpc_agent().join()
     try:
         # This raises a `TORCH_CHECK()` exception on RRef leak detected.
