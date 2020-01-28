@@ -268,6 +268,10 @@ If the future completes with an error, an exception is thrown.
     RpcAgent::setCurrentRpcAgent(nullptr);
   });
 
+  module.def("_delete_all_user_rrefs", []() {
+    RRefContext::getInstance().delAllUsers();
+  });
+
   module.def("_destroy_rref_context", [](bool ignoreRRefLeak) {
     RRefContext::getInstance().destroyInstance(ignoreRRefLeak);
   });
