@@ -10,6 +10,9 @@ from ..autograd.utils import YamlLoader, CodeTemplate, write
 from ..autograd.gen_python_functions import get_py_torch_functions, get_py_variable_methods
 from ..autograd.gen_autograd import load_aten_declarations
 
+from tools.shared.module_loader import import_module
+TOUtils = import_module('tensor_options_utils', 'aten/src/ATen/tensor_options_utils.py')
+
 """
 This module implements generation of type stubs for PyTorch,
 enabling use of autocomplete in IDEs like PyCharm, which otherwise
@@ -39,7 +42,8 @@ read gen_pyi for the gory details.
 
 needed_modules = set()
 
-FACTORY_PARAMS = "dtype: Optional[_dtype]=None, device: Union[_device, str, None]=None, requires_grad: _bool=False"
+FACTORY_PARAMS = ("dtype: Optional[_dtype]=None, layout: Optional[_layout]=None, "
+                  "device: Union[_device, str, None]=None, pin_memory: _bool=None, requires_grad: _bool=False")
 
 # this could be more precise w.r.t list contents etc. How to do Ellipsis?
 INDICES = "indices: Union[None, _int, slice, Tensor, List, Tuple]"
@@ -134,6 +138,7 @@ def type_to_python(typename, size=None):
         'Dimname': 'Union[str, None]',
         'DimnameList': 'List[Union[str, None]]',
         'QScheme': '_qscheme',
+        'Layout': '_layout'
     }[typename]
 
     return typename
@@ -157,6 +162,8 @@ def arg_to_type_hint(arg):
             default = None
         elif default == 'c10::nullopt':
             default = None
+        elif default == 'at::kLong':
+            default = 'long'
         elif isinstance(default, str) and default.startswith('{') and default.endswith('}'):
             if arg['dynamic_type'] == 'Tensor' and default == '{}':
                 default = None
@@ -245,18 +252,15 @@ def generate_type_hints(fname, decls, is_tensor=False):
         render_kw_only_separator = True  # whether we add a '*' if we see a keyword only argument
         python_args = []
 
-        has_tensor_options = 'TensorOptions' in (a['dynamic_type'] for a in decl['arguments'])
-
         for a in decl['arguments']:
-            if a['dynamic_type'] != 'TensorOptions':
-                if a.get('kwarg_only', False) and render_kw_only_separator:
-                    python_args.append('*')
-                    render_kw_only_separator = False
-                try:
-                    python_args.append(arg_to_type_hint(a))
-                except Exception:
-                    print("Error while processing function {}".format(fname))
-                    raise
+            if a.get('kwarg_only', False) and render_kw_only_separator:
+                python_args.append('*')
+                render_kw_only_separator = False
+            try:
+                python_args.append(arg_to_type_hint(a))
+            except Exception:
+                print("Error while processing function {}".format(fname))
+                raise
 
         if is_tensor:
             if 'self: Tensor' in python_args:
@@ -265,20 +269,19 @@ def generate_type_hints(fname, decls, is_tensor=False):
             else:
                 raise Exception("method without self is unexpected")
 
+        # This is a hack
+        # Please see [Add requires_grad to native_functions.yaml and potentially to TensorOptions object] in the
+        # tracking issue https://github.com/pytorch/pytorch/issues/30405
+        has_tensor_options = TOUtils.check_if_factory_method(decl['arguments'])
+        if has_tensor_options:
+            python_args.append('requires_grad: Optional[_bool]=None')
+
+
         if has_out:
             if render_kw_only_separator:
                 python_args.append('*')
                 render_kw_only_separator = False
             python_args.append('out: Optional[Tensor]=None')
-
-        if has_tensor_options:
-            if render_kw_only_separator:
-                python_args.append('*')
-                render_kw_only_separator = False
-            python_args += ["dtype: _dtype=None",
-                            "layout: _layout=strided",
-                            "device: Union[_device, str, None]=None",
-                            "requires_grad:_bool=False"]
 
         python_args_s = ', '.join(python_args)
         python_returns = [type_to_python(r['dynamic_type']) for r in decl['returns']]

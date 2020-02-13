@@ -6,11 +6,11 @@
 #include <c10/core/ScalarType.h>
 #include <c10/core/Device.h>
 #include <c10/core/DispatchKeySet.h>
+#include <c10/core/DefaultTensorOptions.h>
 
 #include <c10/util/Optional.h>
 #include <c10/util/C++17.h>
 #include <c10/macros/Macros.h>
-
 #include <cstddef>
 #include <iosfwd>
 #include <utility>
@@ -340,6 +340,68 @@ struct C10_API TensorOptions {
     // BackendSelect is a very special dispatch key which was introduced only for
     // the factory functions with TensorOptions and should be special cased here.
     return DispatchKeySet(computeDispatchKey()).add(DispatchKey::BackendSelect);
+  }
+
+  inline static DispatchKey computeDispatchKey(c10::optional<ScalarType> inDtype, c10::optional<Layout> inLayout, c10::optional<Device> inDevice) {
+    auto dtype = inDtype.value_or(typeMetaToScalarType(getDefaultTensorOptions().dtype()));
+    auto layout = inLayout.value_or(getDefaultTensorOptions().layout());
+    auto device = inDevice.value_or(getDefaultTensorOptions().device());
+
+    switch (layout) {
+      case Layout::Strided:
+        switch (device.type()) {
+          case DeviceType::CPU: {
+            if (isComplexType(dtype)) {
+              return DispatchKey::ComplexCPUTensorId;
+            }
+            if (isQIntType(dtype)) {
+              return DispatchKey::QuantizedCPUTensorId;
+            }
+            return DispatchKey::CPUTensorId;
+            }
+          case DeviceType::CUDA:
+            if (isComplexType(dtype)) {
+              return DispatchKey::ComplexCUDATensorId;
+            }
+            return DispatchKey::CUDATensorId;
+          case DeviceType::MKLDNN:
+            return DispatchKey::MKLDNNTensorId;
+          case DeviceType::OPENGL:
+            return DispatchKey::OpenGLTensorId;
+          case DeviceType::OPENCL:
+            return DispatchKey::OpenCLTensorId;
+          case DeviceType::IDEEP:
+            return DispatchKey::IDEEPTensorId;
+          case DeviceType::HIP:
+            return DispatchKey::HIPTensorId;
+          case DeviceType::MSNPU:
+            return DispatchKey::MSNPUTensorId;
+          case DeviceType::XLA:
+            return DispatchKey::XLATensorId;
+          default:
+            AT_ERROR("Unsupported device type for dense layout: ", device.type());
+        }
+      case Layout::Sparse:
+        switch (device.type()) {
+          case DeviceType::CPU:
+            return DispatchKey::SparseCPUTensorId;
+          case DeviceType::CUDA:
+            return DispatchKey::SparseCUDATensorId;
+          case DeviceType::HIP:
+            return DispatchKey::SparseHIPTensorId;
+          default:
+            AT_ERROR("Unsupported device type for sparse layout: ", device.type());
+        }
+      case Layout::Mkldnn:
+        switch (device.type()) {
+          case DeviceType::CPU:
+            return DispatchKey::MkldnnCPUTensorId;
+          default:
+            AT_ERROR("Unsupported device type for mkldnn layout: ", device.type());
+        }
+      default:
+        AT_ERROR("Unsupported layout: ", layout);
+    }
   }
 
   inline DispatchKey computeDispatchKey() const {
