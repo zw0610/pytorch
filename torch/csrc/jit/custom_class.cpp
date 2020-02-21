@@ -2,6 +2,7 @@
 #include <torch/csrc/jit/script/compilation_unit.h>
 
 #include <atomic>
+#include <unordered_map>
 
 namespace torch {
 namespace jit {
