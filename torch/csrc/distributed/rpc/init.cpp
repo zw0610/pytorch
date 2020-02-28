@@ -300,7 +300,8 @@ If the future completes with an error, an exception is thrown.
       "_invoke_rpc_builtin",
       [](const WorkerInfo& dst,
          const std::string& opName,
-         const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf,
+         const std::shared_ptr<torch::autograd::profiler::RecordFunctionAsync>&
+             rf,
          const py::args& args,
          const py::kwargs& kwargs) {
         DCHECK(PyGILState_Check());
@@ -313,7 +314,7 @@ If the future completes with an error, an exception is thrown.
       [](const WorkerInfo& dst,
          std::string& pickledPythonUDF,
          std::vector<torch::Tensor>& tensors,
-         const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf) {
+         const std::shared_ptr<torch::autograd::profiler::RecordFunctionAsync>& rf) {
         DCHECK(!PyGILState_Check());
         return pyRpcPythonUdf(dst, pickledPythonUDF, tensors, rf);
       },
@@ -387,7 +388,8 @@ If the future completes with an error, an exception is thrown.
       "_invoke_remote_builtin",
       [](const WorkerInfo& dst,
          const std::string& opName,
-         const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf,
+         const std::shared_ptr<torch::autograd::profiler::RecordFunctionAsync>&
+             rf,
          const py::args& args,
          const py::kwargs& kwargs) {
         DCHECK(PyGILState_Check());
@@ -426,7 +428,7 @@ If the future completes with an error, an exception is thrown.
       [](const WorkerInfo& dst,
          std::string& pickledPythonUDF,
          std::vector<torch::Tensor>& tensors,
-         const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf) {
+         const std::shared_ptr<torch::autograd::profiler::RecordFunctionAsync>& rf) {
         DCHECK(!PyGILState_Check());
         return pyRemotePythonUdf(dst, pickledPythonUDF, tensors, rf);
       },
