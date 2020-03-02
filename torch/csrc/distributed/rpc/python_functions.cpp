@@ -119,6 +119,7 @@ std::shared_ptr<FutureMessage> pyRpcBuiltin(
     const WorkerInfo& dst,
     const std::string& opName,
     const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf,
+    const std::chrono::milliseconds rpcTimeout,
     const py::args& args,
     const py::kwargs& kwargs) {
   Stack stack;
@@ -128,7 +129,7 @@ std::shared_ptr<FutureMessage> pyRpcBuiltin(
   auto scriptCall = std::make_unique<ScriptCall>(op, std::move(stack));
   auto agent = RpcAgent::getCurrentRpcAgent();
   return sendMessageWithAutograd(
-      *agent, dst, std::move(*scriptCall).toMessage(), false, rf);
+      *agent, dst, std::move(*scriptCall).toMessage(), false, rf, rpcTimeout);
 }
 
 PyRRef pyRemoteBuiltin(
@@ -166,7 +167,8 @@ std::shared_ptr<FutureMessage> pyRpcPythonUdf(
     const WorkerInfo& dst,
     std::string& pickledPythonUDF,
     std::vector<torch::Tensor>& tensors,
-    const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf) {
+    const std::shared_ptr<torch::autograd::profiler::RecordFunction>& rf,
+    const std::chrono::milliseconds timeout) {
   auto pythonCall = std::make_unique<PythonCall>(
       std::vector<char>(pickledPythonUDF.begin(), pickledPythonUDF.end()),
       tensors);
@@ -177,7 +179,8 @@ std::shared_ptr<FutureMessage> pyRpcPythonUdf(
       dst,
       std::move(*pythonCall).toMessage(),
       true /*forceGradRecording*/,
-      rf);
+      rf,
+      timeout);
 }
 
 PyRRef pyRemotePythonUdf(

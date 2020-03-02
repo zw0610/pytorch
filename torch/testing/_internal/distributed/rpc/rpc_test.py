@@ -29,6 +29,10 @@ from torch.testing._internal.distributed.rpc.rpc_agent_test_fixture import (
 def foo_add():
     return torch.add(torch.ones(1), torch.ones(1))
 
+@torch.jit.script
+def my_script_func():
+    # type: () -> Tensor
+    return torch.add(torch.ones(1), torch.ones(1))
 
 def requires_process_group_agent(message=""):
     def decorator(old_func):
@@ -1522,58 +1526,100 @@ class RpcTest(RpcAgentTestFixture):
         # pass in graceful=False to ensure that we don't wait for other workers.
         rpc.shutdown(graceful=False)
 
-    @dist_init(setup_rpc=False)
-    def test_get_rpc_timeout(self):
-        timeout = timedelta(seconds=1)
+    def retry_timeout_test(self, rpc_func, dst_worker, func, args, timeout, num_retries=10):
+        for i in range(num_retries):
+            try:
+                ret = rpc_func(dst_worker, func, args=args, timeout=timeout)
+                if isinstance(ret, rpc.Future) or isinstance(ret, rpc._pyFuture):
+                    ret.wait()
+            except RuntimeError as e:
+                if "RPC ran for" in str(e):
+                    return True
 
-        # A new `RpcBackendOptions` is constructed
-        # when accessing `self.rpc_backend_options`.
-        rpc_backend_options = self.rpc_backend_options
-        rpc_backend_options.rpc_timeout = timeout
-
-        rpc.init_rpc(
-            name="worker{}".format(self.rank),
-            backend=self.rpc_backend,
-            rank=self.rank,
-            world_size=self.world_size,
-            rpc_backend_options=rpc_backend_options,
-        )
-        set_timeout = rpc.get_rpc_timeout()
-        self.assertEqual(timeout, set_timeout)
-        rpc.shutdown()
+        print("Failing because exhausted {} retries".format(num_retries))
+        print("Ret was type {}".format(type(ret)))
+        return False
 
     @dist_init
-    @requires_process_group_agent("PROCESS_GROUP rpc backend specific test, skip")
     def test_rpc_timeouts(self):
+        # TODO: enable timeouts for rpc.remote/RRef (https://github.com/pytorch/pytorch/issues/33803)
         dst_rank = (self.rank + 1) % self.world_size
-        rpc._set_rpc_timeout(timedelta(milliseconds=1))
-        # futures should time out and be marked with an exception indicating it as such.
-        futs = [
-            rpc.rpc_async("worker{}".format(dst_rank), my_sleep_func, args=())
-            for _ in range(10)
-        ]
-        for fut in futs:
-            with self.assertRaisesRegex(RuntimeError, "RPC ran for more than"):
-                fut.wait()
+        dst_worker = "worker{}".format(dst_rank)
+        timeout = timedelta(milliseconds=100)
+        # Test async UDF
+        fut = rpc.rpc_async(dst_worker, my_sleep_func, args=(1,), timeout=timeout)
+        with self.assertRaisesRegex(RuntimeError, "RPC ran for"):
+            fut.wait()
 
-        # ensure that if a new timeout is set old futures don't time out but new ones do.
-        rpc._set_rpc_timeout(timedelta(seconds=200))
-        # create a longstanding RPC.
-        fut1 = rpc.rpc_async("worker{}".format(dst_rank), my_sleep_func, args=(1,))
-        # now, set a short timeout.
-        rpc._set_rpc_timeout(timedelta(milliseconds=1))
-        # f2 should time out, f should not.
-        fut2 = rpc.rpc_async("worker{}".format(dst_rank), my_sleep_func, args=(1,))
-        with self.assertRaises(RuntimeError):
-            fut2.wait()
-        fut1.wait()
+        rpc.rpc_async(dst_worker, my_sleep_func, args=(1,)).wait()
 
-        # future should run to completion if the timeout is zero.
-        rpc._set_rpc_timeout(timedelta(seconds=0))
-        rpc.rpc_async("worker{}".format(dst_rank), my_sleep_func, args=()).wait()
+        # Test sync UDF
+        with self.assertRaisesRegex(RuntimeError, "RPC ran for"):
+            rpc.rpc_sync(dst_worker, my_sleep_func, args=(1,), timeout=timeout)
 
-        # reset to default timeout so shutdown messages can process cleanly.
-        rpc._set_rpc_timeout(rpc.constants.DEFAULT_RPC_TIMEOUT)
+        rpc.rpc_sync(dst_worker, my_sleep_func, args=(1,))
+
+        # Test async builtin
+        builtin_timeout = timedelta(milliseconds=1)
+        success = self.retry_timeout_test(
+            rpc.rpc_async,
+            dst_worker,
+            torch.add,
+            args=(torch.ones(100, 100), torch.ones(100, 100)),
+            timeout=builtin_timeout,
+        )
+        self.assertTrue(success)
+
+        rpc.rpc_async(
+            dst_worker, torch.add, args=(torch.ones(100, 100), torch.ones(100, 100))
+        ).wait()
+
+        # Test sync builtin
+        success = self.retry_timeout_test(
+            rpc.rpc_sync,
+            dst_worker,
+            torch.add,
+            args=(torch.ones(100, 100), torch.ones(100, 100)),
+            timeout=builtin_timeout,
+        )
+        self.assertTrue(success)
+
+
+        rpc.rpc_sync(
+            dst_worker, torch.add, args=(torch.ones(100, 100), torch.ones(100, 100))
+        )
+
+        # Test async torchscript
+        success = self.retry_timeout_test(
+            rpc._rpc_async_torchscript,
+            dst_worker,
+            torch.jit._qualified_name(heavy_rpc_torchscript),
+            args=(torch.ones(100, 100),),
+            timeout=builtin_timeout,
+        )
+        self.assertTrue(success)
+
+        rpc._rpc_async_torchscript(
+            dst_worker,
+            torch.jit._qualified_name(heavy_rpc_torchscript),
+            args=(torch.ones(100, 100),),
+        ).wait()
+
+        # Test sync torchscript
+        success = self.retry_timeout_test(
+            rpc._rpc_sync_torchscript,
+            dst_worker,
+            torch.jit._qualified_name(heavy_rpc_torchscript),
+            args=(torch.ones(100, 100),),
+            timeout=builtin_timeout,
+        )
+        self.assertTrue(success)
+
+        rpc._rpc_sync_torchscript(
+            dst_worker,
+            torch.jit._qualified_name(heavy_rpc_torchscript),
+            args=(torch.ones(100, 100),),
+        )
 
     def test_requires_process_group_agent_decorator(self):
         @requires_process_group_agent("test_func did not run")

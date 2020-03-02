@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import collections
-import datetime
 import enum
 
 import torch.distributed as dist
@@ -59,15 +58,12 @@ def register_backend(
 
 def construct_rpc_backend_options(
     backend,
-    rpc_timeout=rpc_constants.DEFAULT_RPC_TIMEOUT,
     init_method=rpc_constants.DEFAULT_INIT_METHOD,
     **kwargs
 ):
-    if not isinstance(rpc_timeout, datetime.timedelta):
-        raise RuntimeError("`rpc_timeout` must be a `datetime.timedelta`.")
 
     return backend.value.construct_rpc_backend_options_handler(
-        rpc_timeout, init_method, **kwargs
+        init_method, **kwargs
     )
 
 
@@ -76,7 +72,6 @@ def init_backend(backend, *args, **kwargs):
 
 
 def _process_group_construct_rpc_backend_options_handler(
-    rpc_timeout,
     init_method,
     num_send_recv_threads=rpc_constants.DEFAULT_NUM_SEND_RECV_THREADS,
     **kwargs
@@ -84,7 +79,6 @@ def _process_group_construct_rpc_backend_options_handler(
     from . import ProcessGroupRpcBackendOptions
 
     rpc_backend_options = ProcessGroupRpcBackendOptions()
-    rpc_backend_options.rpc_timeout = rpc_timeout
     rpc_backend_options.init_method = init_method
     rpc_backend_options.num_send_recv_threads = num_send_recv_threads
     return rpc_backend_options
@@ -126,12 +120,7 @@ def _process_group_init_backend_handler(
                 )
             )
         # TODO: add try-except and destroy _agent in all processes if any fails.
-        return ProcessGroupAgent(
-            name,
-            group,
-            rpc_backend_options.num_send_recv_threads,
-            rpc_backend_options.rpc_timeout,
-        )
+        return ProcessGroupAgent(name, group, rpc_backend_options.num_send_recv_threads)
     except Exception as ex:
         dist.destroy_process_group()
         raise ex
