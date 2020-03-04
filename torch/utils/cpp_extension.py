@@ -22,7 +22,7 @@ from setuptools.command.build_ext import build_ext
 IS_WINDOWS = sys.platform == 'win32'
 
 def _find_cuda_home():
-    '''Finds the CUDA install path.'''
+    r'''Finds the CUDA install path.'''
     # Guess #1
     cuda_home = os.environ.get('CUDA_HOME') or os.environ.get('CUDA_PATH')
     if cuda_home is None:
@@ -51,7 +51,7 @@ def _find_cuda_home():
     return cuda_home
 
 def _find_rocm_home():
-    '''Finds the ROCm install path.'''
+    r'''Finds the ROCm install path.'''
     # Guess #1
     rocm_home = os.environ.get('ROCM_HOME') or os.environ.get('ROCM_PATH')
     if rocm_home is None:
@@ -74,7 +74,7 @@ def _find_rocm_home():
 
 
 def _join_rocm_home(*paths):
-    '''
+    r'''
     Joins paths with ROCM_HOME, or raises an error if it ROCM_HOME is not set.
 
     This is basically a lazy way of raising an error for missing $ROCM_HOME
@@ -163,7 +163,7 @@ def _accepted_compilers_for_platform():
 
 
 def get_default_build_root():
-    '''
+    r'''
     Returns the path to the root folder under which extensions will built.
 
     For each extension module built, there will be one folder underneath the
@@ -176,7 +176,7 @@ def get_default_build_root():
 
 
 def check_compiler_ok_for_platform(compiler):
-    '''
+    r'''
     Verifies that the compiler is the expected one for the current platform.
 
     Arguments:
@@ -195,7 +195,7 @@ def check_compiler_ok_for_platform(compiler):
 
 
 def check_compiler_abi_compatibility(compiler):
-    '''
+    r'''
     Verifies that the given compiler is ABI-compatible with PyTorch.
 
     Arguments:
@@ -251,7 +251,7 @@ def check_compiler_abi_compatibility(compiler):
 
 
 class BuildExtension(build_ext, object):
-    '''
+    r'''
     A custom :mod:`setuptools` build extension .
 
     This :class:`setuptools.build_ext` subclass takes care of passing the
@@ -278,7 +278,7 @@ class BuildExtension(build_ext, object):
 
     @classmethod
     def with_options(cls, **options):
-        '''
+        r'''
         Returns an alternative constructor that extends any original keyword
         arguments to the original constructor with the given options.
         '''
@@ -370,7 +370,7 @@ class BuildExtension(build_ext, object):
                                     extra_preargs=None,
                                     extra_postargs=None,
                                     depends=None):
-            """Compiles sources by outputting a ninja file and running it."""
+            r"""Compiles sources by outputting a ninja file and running it."""
             # NB: I copied some lines from self.compiler (which is an instance
             # of distutils.UnixCCompiler). See the following link.
             # https://github.com/python/cpython/blob/f03a8f8d5001963ad5b5b28dbd95497e9cc15596/Lib/distutils/ccompiler.py#L564-L567
@@ -630,7 +630,7 @@ class BuildExtension(build_ext, object):
 
 
 def CppExtension(name, sources, *args, **kwargs):
-    '''
+    r'''
     Creates a :class:`setuptools.Extension` for C++.
 
     Convenience method that creates a :class:`setuptools.Extension` with the
@@ -674,7 +674,7 @@ def CppExtension(name, sources, *args, **kwargs):
 
 
 def CUDAExtension(name, sources, *args, **kwargs):
-    '''
+    r'''
     Creates a :class:`setuptools.Extension` for CUDA/C++.
 
     Convenience method that creates a :class:`setuptools.Extension` with the
@@ -767,7 +767,7 @@ def include_paths(cuda=False):
 
 
 def library_paths(cuda=False):
-    '''
+    r'''
     Get the library paths required to build a C++ or CUDA extension.
 
     Args:
@@ -815,7 +815,7 @@ def load(name,
          verbose=False,
          with_cuda=None,
          is_python_module=True):
-    '''
+    r'''
     Loads a PyTorch C++ extension just-in-time (JIT).
 
     To load an extension, a Ninja build file is emitted, which is used to
@@ -911,7 +911,7 @@ def load_inline(name,
                 with_cuda=None,
                 is_python_module=True,
                 with_pytorch_error_handling=True):
-    '''
+    r'''
     Loads a PyTorch C++ extension just-in-time (JIT) from string sources.
 
     This function behaves exactly like :func:`load`, but takes its sources as
@@ -1197,7 +1197,7 @@ def _is_ninja_available():
 
 
 def verify_ninja_availability():
-    '''
+    r'''
     Returns ``True`` if the `ninja <https://ninja-build.org/>`_ build system is
     available on the system.
     '''
@@ -1254,7 +1254,7 @@ def _prepare_ldflags(extra_ldflags, with_cuda, verbose):
 
 
 def _get_cuda_arch_flags(cflags=None):
-    '''
+    r'''
     Determine CUDA arch flags to use.
 
     For an arch, say "6.1", the added compile flag will be
@@ -1350,7 +1350,11 @@ def _get_build_directory(name, verbose):
         if verbose:
             print('Creating extension directory {}...'.format(build_directory))
         # This is like mkdir -p, i.e. will also create parent directories.
-        os.makedirs(build_directory)
+        try:
+            original_umask = os.umask(0)
+            os.makedirs(build_directory, 0o777)  # create folder with 777 so other users can reuse
+        finally:
+            os.umask(original_umask)
 
     return build_directory
 
@@ -1526,7 +1530,7 @@ def _write_ninja_file(path,
                       ldflags,
                       library_target,
                       with_cuda):
-    """Write a ninja file that does the desired compiling and linking.
+    r"""Write a ninja file that does the desired compiling and linking.
 
     `path`: Where to write this file
     `cflags`: list of flags to pass to $cxx. Can be None.
@@ -1639,7 +1643,7 @@ def _write_ninja_file(path,
 
 
 def _join_cuda_home(*paths):
-    '''
+    r'''
     Joins paths with CUDA_HOME, or raises an error if it CUDA_HOME is not set.
 
     This is basically a lazy way of raising an error for missing $CUDA_HOME
