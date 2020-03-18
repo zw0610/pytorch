@@ -471,15 +471,21 @@ if (NOT INTERN_BUILD_MOBILE OR NOT BUILD_CAFFE2_MOBILE)
     ${TORCH_SRC_DIR}/csrc/jit/api/function.cpp
     ${TORCH_SRC_DIR}/csrc/jit/runtime/vararg_functions.cpp
 
-    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/mem_arena.cpp
     ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/codegen.cpp
-    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/expr.cpp
     ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/eval.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/expr.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/function.cpp
     ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir.cpp
-    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir_visitor.cpp
-    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/types.cpp
-    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir_printer.cpp
     ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir_mutator.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir_printer.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/ir_visitor.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/kernel.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/llvm_codegen.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/llvm_jit.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/mem_arena.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/schedule.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/tensor.cpp
+    ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/types.cpp
     ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/unique_name_manager.cpp
     )
 
@@ -552,6 +558,7 @@ if (NOT INTERN_BUILD_MOBILE OR NOT BUILD_CAFFE2_MOBILE)
       ${TORCH_SRC_DIR}/csrc/autograd/profiler_cuda.cpp
       ${TORCH_SRC_DIR}/csrc/autograd/functions/comm.cpp
       ${TORCH_SRC_DIR}/csrc/cuda/comm.cpp
+      ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/cuda_codegen.cpp
     )
     add_library(caffe2_nvrtc SHARED ${ATen_NVRTC_STUB_SRCS})
     target_link_libraries(caffe2_nvrtc ${CUDA_NVRTC} ${CUDA_CUDA_LIB} ${CUDA_NVRTC_LIB})
@@ -569,6 +576,7 @@ if (NOT INTERN_BUILD_MOBILE OR NOT BUILD_CAFFE2_MOBILE)
       ${TORCH_SRC_DIR}/csrc/autograd/profiler_cuda.cpp
       ${TORCH_SRC_DIR}/csrc/autograd/functions/comm.cpp
       ${TORCH_SRC_DIR}/csrc/cuda/comm.cpp
+      ${TORCH_SRC_DIR}/csrc/jit/tensorexpr/cuda_codegen.cpp
     )
     if (USE_NCCL)
       list(APPEND Caffe2_HIP_SRCS
@@ -648,6 +656,13 @@ endif()
 
 add_library(torch_cpu ${Caffe2_CPU_SRCS})
 torch_compile_options(torch_cpu)  # see cmake/public/utils.cmake
+
+if (USE_LLVM AND LLVM_FOUND)
+  llvm_map_components_to_libnames(LLVM_LINK_LIBS
+    support core analysis executionengine instcombine
+    scalaropts transformutils native orcjit)
+  target_link_libraries(torch_cpu PRIVATE ${LLVM_LINK_LIBS})
+endif()
 
 # This is required for older versions of CMake, which don't allow
 # specifying add_library() without a list of source files
@@ -1187,6 +1202,7 @@ if (BUILD_TEST)
     add_executable(${test_name} "${test_src}")
     target_link_libraries(${test_name} ${Caffe2_MAIN_LIBS} gtest_main)
     target_include_directories(${test_name} PRIVATE $<INSTALL_INTERFACE:include>)
+    target_include_directories(${test_name} PRIVATE $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>)
     target_include_directories(${test_name} PRIVATE ${Caffe2_CPU_INCLUDE})
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
     if (INSTALL_TEST)
