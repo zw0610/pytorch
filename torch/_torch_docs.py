@@ -1513,6 +1513,20 @@ Example::
             -1.8209, -2.9780, -3.4022])
 """.format(**reduceops_common_args))
 
+add_docstr(torch.dequantize,
+           r"""
+dequantize(tensor) -> Tensor
+
+Given a quantized Tensor, dequantize it and return the dequantized float Tensor.
+""".format(**reduceops_common_args))
+
+add_docstr(torch.dequantize,
+           r"""
+dequantize(tensors) -> List of Tensors
+
+Given a list of quantized Tensors, dequantize them and return a list of dequantized Tensors
+""".format(**reduceops_common_args))
+
 add_docstr(torch.diag,
            r"""
 diag(input, diagonal=0, out=None) -> Tensor
