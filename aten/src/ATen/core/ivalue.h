@@ -546,6 +546,10 @@ struct CAFFE2_API IValue final {
   template<typename T>
   optional<T> toOptional();
 
+  /// @private [doxygen private]
+  /// this is a shallow comparison of two IValues to test the object identity
+  bool isSameIdentity(const IValue& rhs) const;
+
   // Computes the "official" string representation of an IValue. This produces a
   // TorchScript expression that can be used to recreate an IValue with the same
   // value (e.g. when we are printing constants in the serializer).
