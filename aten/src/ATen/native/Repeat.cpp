@@ -19,13 +19,13 @@ static void compute_cpu(int64_t *repeat_ptr, int64_t *cumsum_ptr, int64_t *resul
     });
 }
 
+namespace at { namespace native {
+
 static inline IntArrayRef to_intarrayref(const Tensor& t){
     TORCH_CHECK(t.dim() == 1, "shape tensor should be a vector");
     TORCH_CHECK(t.scalar_type() == at::kLong, "shape has to be Long tensor");
     return IntArrayRef(t.data_ptr<int64_t>(), t.size(0));
 }
-
-namespace at { namespace native {
 
 Tensor naive_loop(const Tensor& input, const Tensor& repeats) {
   TORCH_CHECK(repeats.dim() == 1, "repeat_interleave only accept 1D vector as repeat");
