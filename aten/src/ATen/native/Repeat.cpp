@@ -19,13 +19,17 @@ static void compute_cpu(int64_t *repeat_ptr, int64_t *cumsum_ptr, int64_t *resul
     });
 }
 
+static inline IntArrayRef to_intarrayref(const Tensor& t){
+    TORCH_CHECK(t.dim() == 1, "shape tensor should be a vector");
+    TORCH_CHECK(t.scalar_type() == at::kLong, "shape has to be Long tensor");
+    return IntArrayRef(t.data_ptr<int64_t>(), t.size(0));
+}
+
 namespace at { namespace native {
 
 Tensor naive_loop(const Tensor& input, const Tensor& repeats) {
   TORCH_CHECK(repeats.dim() == 1, "repeat_interleave only accept 1D vector as repeat");
   TORCH_CHECK(repeats.scalar_type() == at::kLong, "repeats has to be Long tensor");
-
-  // TODO: combine with sum computation to skip an extra iter.
   TORCH_CHECK((repeats >= 0).all().item<uint8_t>(), "repeats can not be negative");
 
   Tensor repeats_ = repeats.contiguous();
@@ -50,8 +54,6 @@ template <unsigned N>
 Tensor sharded_loop(const Tensor& input, const Tensor& repeats) {
   TORCH_CHECK(repeats.dim() == 1, "repeat_interleave only accept 1D vector as repeat");
   TORCH_CHECK(repeats.scalar_type() == at::kLong, "repeats has to be Long tensor");
-
-  // TODO: combine with sum computation to skip an extra iter.
   TORCH_CHECK((repeats >= 0).all().item<uint8_t>(), "repeats can not be negative");
 
   Tensor repeats_ = repeats.contiguous();
@@ -157,7 +159,22 @@ Tensor repeat_interleave(
     case 0:
       return input.index_select(dim.value(), at::repeat_interleave(repeats_));
     case 1:
-      return input.gather(dim.value(), at::repeat_interleave(repeats_));
+        {
+            Tensor indices = at::repeat_interleave(repeats_);
+
+            Tensor indices_sizes = at::ones({self.dim()}, TensorOptions(at::kLong));
+            indices_sizes[dim.value()] = indices.size(0);
+            indices = indices.reshape(to_intarrayref(indices_sizes));
+
+            Tensor expanded_indices_shape = at::_shape_as_tensor(self).clone();
+            expanded_indices_shape[dim.value()] = -1;
+            indices = indices.expand(to_intarrayref(expanded_indices_shape));
+            return input.gather(dim.value(), indices);
+        }
+      
+    // Just the index generation to easily measure that portion.
+    case 100:
+      return at::repeat_interleave(repeats_);
 
     // NOTE: prototypes assume dim=0.
     case 2:
