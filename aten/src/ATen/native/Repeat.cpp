@@ -4,6 +4,7 @@
 #include <ATen/ATen.h>
 #include <ATen/native/Repeat.h>
 #include <ATen/Parallel.h>
+#include <c10/util/SmallVector.h>
 
 
 static void compute_cpu(int64_t *repeat_ptr, int64_t *cumsum_ptr, int64_t *result_ptr, int64_t size) {
@@ -20,12 +21,6 @@ static void compute_cpu(int64_t *repeat_ptr, int64_t *cumsum_ptr, int64_t *resul
 }
 
 namespace at { namespace native {
-
-static inline IntArrayRef to_intarrayref(const Tensor& t){
-    TORCH_CHECK(t.dim() == 1, "shape tensor should be a vector");
-    TORCH_CHECK(t.scalar_type() == at::kLong, "shape has to be Long tensor");
-    return IntArrayRef(t.data_ptr<int64_t>(), t.size(0));
-}
 
 Tensor naive_loop(const Tensor& input, const Tensor& repeats) {
   TORCH_CHECK(repeats.dim() == 1, "repeat_interleave only accept 1D vector as repeat");
@@ -162,26 +157,33 @@ Tensor repeat_interleave(
         {
             Tensor indices = at::repeat_interleave(repeats_);
 
-            Tensor indices_sizes = at::ones({self.dim()}, TensorOptions(at::kLong));
+            SmallVector<int64_t, 4> indices_sizes(/*n=*/self.dim(), /*value=*/1);
             indices_sizes[dim.value()] = indices.size(0);
-            indices = indices.reshape(to_intarrayref(indices_sizes));
+            auto self_sizes = self.sizes();
+            SmallVector<int64_t, 4> expand_sizes(self_sizes.begin(), self_sizes.end());
+            expand_sizes[dim.value()] = indices.size(0);
 
-            Tensor expanded_indices_shape = at::_shape_as_tensor(self).clone();
-            expanded_indices_shape[dim.value()] = -1;
-            indices = indices.expand(to_intarrayref(expanded_indices_shape));
-            return input.gather(dim.value(), indices);
+            return input.gather(dim.value(), indices.view(indices_sizes).expand(expand_sizes));
         }
-      
-    // Just the index generation to easily measure that portion.
-    case 100:
-      return at::repeat_interleave(repeats_);
+    case 2:
+        {
+            Tensor indices = at::repeat_interleave(repeats_);
+
+            std::vector<int64_t> indices_sizes(/*n=*/self.dim(), /*value=*/1);
+            indices_sizes[dim.value()] = indices.size(0);
+            auto self_sizes = self.sizes();
+            std::vector<int64_t> expand_sizes(self_sizes.begin(), self_sizes.end());
+            expand_sizes[dim.value()] = indices.size(0);
+
+            return input.gather(dim.value(), indices.view(indices_sizes).expand(expand_sizes));
+        }
 
     // NOTE: prototypes assume dim=0.
-    case 2:
+    case 101:
       return naive_loop(input, repeats_);
-    case 3:
+    case 102:
       return sharded_loop<1024>(input, repeats_);
-    case 4:
+    case 103:
       return sharded_loop<2048>(input, repeats_);
     default:
       return sharded_loop<4019>(input, repeats_);
