@@ -121,6 +121,8 @@ white_list = [
     ('_xnnpack::conv2d_prepack', datetime.date(2020, 4, 2)),
     ('_xnnpack::linear_packed', datetime.date(2020, 4, 2)),
     ('_xnnpack::linear_prepack', datetime.date(2020, 4, 2)),
+    ('aten::_empty_affine_quantized', datetime.date(2020, 4, 1)),
+    ('aten::_empty_per_channel_affine_quantized', datetime.date(2020, 4, 1)),
 ]
 
 
