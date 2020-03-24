@@ -47,6 +47,7 @@ qactivation_ops = op_bench.op_list(
         ('functional.hardtanh', nnq.functional.hardtanh),
         ('functional.elu', nnq.functional.elu),
         ('functional.hardsigmoid', nnq.functional.hardsigmoid),
+        ('functional.gelu', nnq.functional.gelu),
     ),
     attr_names=('op_name', 'op_func'),
 )
