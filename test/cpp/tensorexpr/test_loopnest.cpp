@@ -12,6 +12,7 @@
 #include "torch/csrc/jit/tensorexpr/ir_printer.h"
 #include "torch/csrc/jit/tensorexpr/loopnest.h"
 #include "torch/csrc/jit/tensorexpr/tensor.h"
+#include "torch/csrc/jit/tensorexpr/bounds_inference.h"
 
 namespace torch {
 namespace jit {
@@ -543,6 +544,58 @@ void testScheduleDynamicShape2D() {
   testWithSize(1, 8);
   testWithSize(16, 32);
   testWithSize(37, 11);
+}
+
+void testScheduleBoundsInference() {
+  KernelScope kernel_scope;
+  {
+    VarHandle m("m", kInt);
+    VarHandle n("n", kInt);
+    Buffer a(VarHandle("a", kHandle), kFloat, {m, ExprHandle(100)});
+    Tensor* c = Compute(
+        "c", {{m, "m"}, {ExprHandle(100), "n"}}, [&](const VarHandle& i, const VarHandle& j) {
+          return a(i, j + 1) + a(i + 1, j);
+        });
+    LoopNest l({c});
+    std::vector<For*> loops = l.getLoopStmtsFor(c);
+    inferBounds(loops[0]);
+  }
+  {
+    std::cerr << "==============================\n";
+    VarHandle m("m", kInt);
+    VarHandle n("n", kInt);
+    Buffer a(VarHandle("a", kHandle), kFloat, {m, ExprHandle(100)});
+    Tensor* c = Compute(
+        "c", {{m, "m"}, {ExprHandle(100), "n"}}, [&](const VarHandle& i, const VarHandle& j) {
+          return a(i, j + 1) + a(i + 1, j);
+        });
+    LoopNest l({c});
+    std::vector<For*> loops = l.getLoopStmtsFor(c);
+    For* x_outer;
+    For* x_inner;
+    For* x_tail;
+    l.SplitWithTail(loops[0], 4, &x_outer, &x_inner, &x_tail);
+    inferBounds(x_inner);
+    inferBounds(x_tail);
+  }
+  {
+    std::cerr << "---------------------------------\n";
+    VarHandle m("m", kInt);
+    VarHandle n("n", kInt);
+    Buffer a(VarHandle("a", kHandle), kFloat, {m, ExprHandle(100)});
+    Tensor* d = Compute(
+        "d", {{m, "m"}, {ExprHandle(100), "n"}}, [&](const VarHandle& i, const VarHandle& j) {
+          return i + j;
+        });
+    Tensor* c = Compute(
+        "c", {{m, "m"}, {ExprHandle(100), "n"}}, [&](const VarHandle& i, const VarHandle& j) {
+          return d->call(i, j + 1) + d->call(i + 1, j);
+        });
+    LoopNest l({c});
+    std::vector<For*> loops = l.getLoopStmtsFor(c);
+    l.computeAt(l.getLoopBodyFor(d), loops[1]);
+    std::cerr << "****\n" << *l.root_stmt() << "\n";
+  }
 }
 
 } // namespace jit

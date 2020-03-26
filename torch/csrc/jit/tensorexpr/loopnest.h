@@ -41,6 +41,8 @@ class TORCH_API LoopNest {
   void setGPUBlockIndex(For* f, int idx);
   void setGPUThreadIndex(For* f, int idx);
 
+  void computeAt(Stmt* s, For* at);
+
  private:
   std::vector<Tensor*> findAllNeededTensors(
       const std::vector<Tensor*>& tensors);
@@ -55,23 +57,6 @@ class TORCH_API LoopNest {
 
   std::unordered_set<Tensor*> output_tensors_;
   std::unordered_set<Tensor*> intermediate_tensors_;
-};
-
-// represent a range [start, stop)
-class Range {
- public:
-  Range() {}
-  Range(const Expr* start, const Expr* stop) : start_(start), stop_(stop) {}
-  const Expr* start() const {
-    return start_;
-  }
-  const Expr* stop() const {
-    return stop_;
-  }
-
- private:
-  const Expr* start_;
-  const Expr* stop_;
 };
 
 } // namespace tensorexpr
