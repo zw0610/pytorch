@@ -27,7 +27,9 @@ enum class DeviceType : int16_t {
   //  - Change the implementations of DeviceTypeName and isValidDeviceType
   //    in DeviceType.cpp
   //  - Change the number below
-  COMPILE_TIME_MAX_DEVICE_TYPES = 10,
+  // Metal of Apple
+  METAL = 10,
+  COMPILE_TIME_MAX_DEVICE_TYPES = 11,
   ONLY_FOR_TEST = 20901, // This device type is only for test.
 };
 
@@ -36,6 +38,7 @@ constexpr DeviceType kCUDA = DeviceType::CUDA;
 constexpr DeviceType kHIP = DeviceType::HIP;
 constexpr DeviceType kMSNPU = DeviceType::MSNPU;
 constexpr DeviceType kXLA = DeviceType::XLA;
+constexpr DeviceType kMetal = DeviceType::METAL;
 
 // define explicit int constant
 constexpr int COMPILE_TIME_MAX_DEVICE_TYPES =

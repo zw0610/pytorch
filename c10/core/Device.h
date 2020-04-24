@@ -86,6 +86,11 @@ struct C10_API Device final {
     return type_ == DeviceType::CPU;
   }
 
+  /// Return true if the device is of Metal type
+  bool is_metal() const noexcept {
+    return type_ == DeviceType::METAL; 
+  }
+
   /// Same string as returned from operator<<.
   std::string str() const;
 
